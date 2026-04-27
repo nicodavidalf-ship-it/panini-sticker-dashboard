@@ -12,12 +12,13 @@ st.set_page_config(page_title="Panini 2026", layout="wide")
 
 # --- LOGIN ---
 st.title("⚽ Panini 2026")
+
 user_id = st.text_input("Enter your email")
 
 if not user_id:
     st.stop()
 
-# --- DATA ---
+# --- DATA STRUCTURE ---
 teams = [
     "ARG","BRA","ENG","FRA","GER","ESP","ITA","POR",
     "NED","BEL","CRO","URU","COL","MEX","USA","CAN"
@@ -25,6 +26,7 @@ teams = [
 
 players = [f"Player{i}" for i in range(1, 21)]
 
+# --- GENERATE BASE DATA ---
 def generate_stickers():
     data = []
     for team in teams:
@@ -40,41 +42,45 @@ def generate_stickers():
             })
     return pd.DataFrame(data)
 
-# --- LOAD ---
+# --- LOAD DATA (SAFE) ---
 def load_data():
     try:
         res = supabase.table("collection").select("*").execute()
 
-        if res.data:
-            df_db = pd.DataFrame(res.data)
-            df_user = df_db[df_db["user_id"] == user_id]
+        if not res.data:
+            return pd.DataFrame()
 
-            if not df_user.empty:
-                return df_user
+        df_db = pd.DataFrame(res.data)
 
+        if "user_id" not in df_db.columns:
+            return pd.DataFrame()
+
+        return df_db[df_db["user_id"] == user_id]
+
+    except Exception:
+        st.warning("Database not ready — using local mode")
         return pd.DataFrame()
 
-    except Exception as e:
-        st.error(f"DB error: {e}")
-        return pd.DataFrame()
-
-# --- INIT USER ---
+# --- INITIALIZE USER ---
 def initialize_user():
     base_df = generate_stickers()
-
     supabase.table("collection").insert(base_df.to_dict("records")).execute()
 
-# --- SAVE ---
+# --- SAVE ROW ---
 def save_row(row):
     supabase.table("collection").upsert(row.to_dict()).execute()
 
-# --- MAIN FLOW ---
+# --- MAIN ---
 df = load_data()
 
+# --- FIRST TIME SETUP ---
 if df.empty:
-    st.warning("Initializing your collection...")
-    initialize_user()
-    df = load_data()
+    st.warning("First time setup required")
+
+    if st.button("Initialize Collection"):
+        initialize_user()
+        st.success("Initialized! Refresh the page.")
+        st.stop()
 
 # --- ADD STICKERS ---
 st.subheader("Add Stickers")
@@ -108,7 +114,7 @@ st.write(f"{collected}/{total} ({(collected/total):.1%})")
 team_filter = st.selectbox("Team", ["All"] + teams)
 view_df = df if team_filter == "All" else df[df["team"] == team_filter]
 
-# --- TABLE ---
+# --- COLLECTION ---
 st.subheader("Collection")
 st.dataframe(view_df)
 
