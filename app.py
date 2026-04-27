@@ -6,7 +6,7 @@ from supabase import create_client
 SUPABASE_URL = "PASTE_URL_HERE"
 SUPABASE_KEY = "PASTE_KEY_HERE"
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase = create_client(https://qdegcbneedwbqllenvrm.supabase.co/rest/v1/, SUPABASE_KEY)
 
 # --- LOGIN ---
 st.title("⚽ Panini 2026")
