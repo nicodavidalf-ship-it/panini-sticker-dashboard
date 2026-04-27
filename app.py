@@ -3,10 +3,10 @@ import pandas as pd
 from supabase import create_client
 
 # --- SUPABASE CONFIG ---
-SUPABASE_URL = "PASTE_URL_HERE"
-SUPABASE_KEY = "PASTE_KEY_HERE"
+SUPABASE_URL = "https://qdegcbneedwbqllenvrm.supabase.co"
+SUPABASE_KEY = "sb_publishable_AehbQss_pfLe-yAncoOf9A_tOH4X2N1"
 
-supabase = create_client(https://qdegcbneedwbqllenvrm.supabase.co, sb_publishable_AehbQss_pfLe-yAncoOf9A_tOH4X2N1)
+supabase = create_client(SUPABASE_URL,SUPABASE_KEY)
 
 # --- LOGIN ---
 st.title("⚽ Panini 2026")
