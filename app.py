@@ -1,104 +1,86 @@
 import streamlit as st
 import pandas as pd
+from supabase import create_client
 
-# --- CONFIG ---
-teams = ["ARG","BRA","EGY","ENG","FRA","KOR","NOR","RSA","URU"]
-parallels = ["Blue","Red","Purple","Green","Black"]
+# --- SUPABASE CONFIG ---
+SUPABASE_URL = "PASTE_URL_HERE"
+SUPABASE_KEY = "PASTE_KEY_HERE"
 
-# --- GENERATE STICKERS ---
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- LOGIN ---
+st.title("⚽ Panini 2026")
+
+user_id = st.text_input("Enter your email")
+
+if not user_id:
+    st.stop()
+
+# --- TEAMS ---
+teams = ["ARG","BRA","ENG","FRA","GER","ESP","ITA","POR"]
+
+players = [
+    "Messi","Di Maria","Alvarez","Enzo","Otamendi",
+    "Mbappe","Griezmann","Dembele","Camavinga","Tchouameni",
+    "Kane","Bellingham","Saka","Foden","Rice"
+]
+
 def generate_stickers():
     data = []
     for team in teams:
-        for i in range(1, 21):  # 20 stickers per team (adjust later if needed)
+        for i, p in enumerate(players[:15], start=1):
             data.append({
                 "sticker": f"{team}{i}",
                 "team": team,
+                "player": p,
                 "collected": False,
-                "parallel": None,
-                "duplicates": 0
+                "duplicates": 0,
+                "parallel": None
             })
     return pd.DataFrame(data)
 
-# --- SESSION STATE ---
-if "df" not in st.session_state:
-    st.session_state.df = generate_stickers()
+df = generate_stickers()
 
-df = st.session_state.df
+# --- LOAD USER DATA ---
+def load_data():
+    res = supabase.table("collection").select("*").eq("user_id", user_id).execute()
 
-# --- TITLE ---
-st.title("⚽ Panini World Cup 2026 Sticker Dashboard")
+    if res.data:
+        return pd.DataFrame(res.data)
+    return df
 
-# --- BULK INPUT ---
-st.subheader("Add Stickers")
+df = load_data()
 
-bulk_input = st.text_area("Enter stickers (comma separated)", "URU2, RSA8")
-parallel_input = st.selectbox("Parallel Type", ["None"] + parallels)
-duplicates = st.number_input("Number of copies", min_value=1, value=1)
+# --- SAVE ---
+def save_row(row):
+    supabase.table("collection").upsert({
+        "user_id": user_id,
+        "sticker": row["sticker"],
+        "collected": row["collected"],
+        "duplicates": row["duplicates"],
+        "parallel": row["parallel"]
+    }).execute()
 
-if st.button("Add Stickers"):
-    stickers = [s.strip().upper() for s in bulk_input.split(",")]
+# --- UI ---
+st.subheader("Add Sticker")
 
-    for s in stickers:
-        if s in df["sticker"].values:
-            idx = df[df["sticker"] == s].index[0]
-            df.at[idx, "collected"] = True
-            df.at[idx, "parallel"] = None if parallel_input == "None" else parallel_input
-            df.at[idx, "duplicates"] += duplicates - 1
+sticker = st.text_input("Sticker (e.g. ARG1)")
 
-    st.success("Stickers added!")
+if st.button("Add"):
+    if sticker in df["sticker"].values:
+        idx = df[df["sticker"] == sticker].index[0]
+        df.at[idx, "collected"] = True
+        df.at[idx, "duplicates"] += 1
+        save_row(df.loc[idx])
 
-# --- FILTER ---
-st.subheader("Filter by Team")
-team_filter = st.selectbox("Select Team", ["All"] + teams)
+# --- PROGRESS ---
+st.subheader("Progress")
 
-view_df = df if team_filter == "All" else df[df["team"] == team_filter]
-
-# --- OVERALL PROGRESS ---
 collected = df["collected"].sum()
 total = len(df)
 
-st.subheader("Overall Progress")
 st.progress(collected / total)
-st.write(f"{collected}/{total} collected ({collected/total:.1%})")
+st.write(f"{collected}/{total}")
 
-# --- TEAM PROGRESS ---
-st.subheader("Progress by Team")
-
-team_progress = df.groupby("team")["collected"].agg(["sum","count"]).reset_index()
-team_progress["completion %"] = team_progress["sum"] / team_progress["count"]
-
-st.dataframe(team_progress)
-
-# --- CLOSEST TO COMPLETION ---
-st.subheader("Closest to Completion")
-
-closest = team_progress.sort_values("completion %", ascending=False)
-st.dataframe(closest.head(3))
-
-# --- RARE PARALLELS ---
-st.subheader("Rare Stickers")
-
-rare_df = df[df["parallel"].notnull()]
-st.dataframe(rare_df)
-
-# --- FULL TABLE ---
-st.subheader("Sticker Collection")
-st.dataframe(view_df)
-
-# --- MISSING STICKERS ---
-st.subheader("Missing Stickers")
-
-missing_df = df[df["collected"] == False]
-
-missing_list = ", ".join(missing_df["sticker"].tolist())
-st.write(missing_list)
-
-# --- DOWNLOAD BUTTON ---
-csv = missing_df.to_csv(index=False).encode("utf-8")
-
-st.download_button(
-    label="Download Missing Stickers CSV",
-    data=csv,
-    file_name="missing_stickers.csv",
-    mime="text/csv"
-)
+# --- TABLE ---
+st.dataframe(df)
